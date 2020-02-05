@@ -2,50 +2,59 @@
 #include <GyverTimer.h>
 #include <SoftwareSerial.h>
 
-GTimer requestTimer(MS);
-long Timer_val = 0;
+//----- Инициализация таймеров -----
+GTimer requestTimer(MS); //Таймер запросов
+GTimer stringCollectTimer(MS);  //Таймаут сбора строки после запроса
 
-int switch_case_val = 0;
-int Time_1 = 1;
-int Time_2 = 2;
-int Time_3 = 3;
-int Time_10 = 10;
 
-// открываем сессию
+
+int switch_case_val = 0;   //Переменная для запроса
+bool  flag_string_collect = 0; //флаг сбора строки
+bool flag_breaket_parse = 0; //флаг парсинга скобок
+
+// Константы для таймера запросов
+#define Time_init  1
+#define Time_mode  2
+#define Time_data  3
+#define Time_end   10
+
+String AnswerString;  //Строка для сбора ответа
+
+// открываем сессию групового опроса
 byte init_message[] = {0x2f, 0x3f, 0x21, 0x0d, 0x0a}; //   /?!<CR><LF>
 // задаем режим считывания
 byte mode_message[] = {0x06,  0x30,  0x35,  0x31,  0x0d, 0x0a};   // <ACK>VZY<CR><LF>
 // снимаем показания      SOH C D STX <DATA()> ETX BCC
 byte data_message[] = {0x01, 0x52,  0x31,  0x02,  0x45, 0x54, 0x30, 0x50, 0x45, 0x28, 0x29,  0x03,  0x37};
 
+//----- пин управления прием/передача для модуля ttl-rs485 -----
+#define RS485_PIN 8 
 
-#define RS485_PIN 8 // пин управления прием/передача
-
-//--------Строка для software serial---------------
-//SoftwareSerial RS485 (7, 6); // RX, TX
-
+/*
+ * --------Строка для использования software serial---------------
+  SoftwareSerial RS485 (7, 6); // RX, TX
+*/
 void setup() {
-  //------Инициализация Serial------------------------
+//------------Инициализация Serial------------
   Serial.begin(9600, SERIAL_7E1);
 
-  //---------Инициализация Таймера--------------------
+//---------Инициализация Таймера для запросов--------------------
   requestTimer.setInterval(1000);
 
-  //----------Инициализация пина RS-485----------------
-  //Вторая строка, возможно, не нужна
+
+//----------Инициализация пина для модуля ttl-RS-485----------------
+//Вторая строка, возможно, не нужна
   pinMode(RS485_PIN, OUTPUT);
   digitalWrite(RS485_PIN, HIGH);
 }
 void loop() {
-  //Запрашиваем информацию
+  
   request();
-  
-  
-  read_bufer();
 
-  Request_string
+  string_collect();
+
   
-  
+
 }
 /*   Тот же switch case только через if (с форума)
 
@@ -69,7 +78,7 @@ void loop() {
     }
 
 */
-
+// ----------- Функции для корректной работы модуля ttl-rs485 -----------
 void transmitt_on() {
   digitalWrite(RS485_PIN, HIGH);
 }
@@ -77,39 +86,58 @@ void transmitt_off() {
   digitalWrite(RS485_PIN, LOW);
 }
 
-//----------Запрашиваем у счетчика информацию--------------
-void request(){
-  if (requestTimer.isReady()){
+//----------Функция отправления запроса счетчику--------------
+void request() {
+  if (requestTimer.isReady()) {
     switch_case_val ++;
-    switch  (val) {
-      case 1:
+    switch  (switch_case_val) {
+      case Time_init:
         transmitt_on();
         Serial.write (init_message, 5);
         transmitt_off();
         break;
-      case 2:
+      case Time_mode:
         transmitt_on();
         Serial.write (mode_message, 6);
         transmitt_off();
         break;
-      case 3:
+      case Time_data:
         transmitt_on();
         Serial.write (data_message, 13);
         transmitt_off();
+        flag_string_collect = true;     //Устанавливаем флаг сбора строки
+        stringCollectTimer.setTimeout(500);   //Запускаем таймаут сбора строки
         break;
-      case 10:
+      case Time_end:
         switch_case_val = 0;
         break;
     }
   }
 }
 
-//-----------Собираем принятые данные по символу------------
+//----------- Функция формирования ascii символа из принятых данных------------
 char read_bufer () {
   if (Serial.available()) {
     char response = Serial.read();
-    //    response &= 0x7F;// convert 8N1 to 7E1
-    //    Serial.print(response);
+/*    Если передаваемый при Serial.begin параметр о паритете 7E1     
+ *     не заработает, то эта строка может заработать как кастыльная 
+ *     альтернатива
+
+        response &= 0x7F;// convert 8N1 to 7E1
+*/        
     return response;
+  }
+}
+//---------- Функция сбора принимаемых символов в строку ----------
+void string_collect() {
+//  Собираем строку пока поднят флаг
+  if (flag_string_collect) {
+    AnswerString += read_bufer();
+  }
+//  Опускаем флаг когда тайаут заканчивается
+  if (stringCollectTimer.isReady()) {
+    flag_string_collect = false;
+    flag_breaket_parse = true;
+    
   }
 }
