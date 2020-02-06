@@ -20,6 +20,7 @@ bool flag_breaket_parse = 0; //флаг парсинга скобок
 String AnswerString;  //Строка для сбора ответа
 
 //---------- Данные для парсера ----------
+#define value 10
 String buf;                     //Буферная строка для преобразования во float
 float Ans_float[value] = {};    //Массив с ответами во float
 String Ans_string[value] = {}; //Массив с ответами в string
@@ -156,11 +157,11 @@ void breaket_parser() {
   if (flag_breaket_parse) {
     //----Ищем позиции скобок и сохряняем их в массивы
     for (int i = 0; i < AnswerString.length(); i++) {
-      if (string0[i] == '(') {
+      if (AnswerString[i] == '(') {
         left_breaket[left_breaket_counter] = i;
         left_breaket_counter++;
       }
-      if (string0[i] == ')') {
+      if (AnswerString[i] == ')') {
         right_breaket[right_breaket_counter] = i;
         right_breaket_counter++;
       }
